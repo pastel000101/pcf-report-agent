@@ -1,0 +1,147 @@
+# {{ meta.product_name }} — 제품 탄소발자국(PCF) 산출근거서
+
+| 대상 제품 | 산정 기간 | 사업장 | 할당 근거 | GWP 기준 |
+|---|---|---|---|---|
+| {{ meta.product_name }} | {{ meta.reporting_period }} | {{ meta.company_name }} {{ meta.site_name }} | {{ meta.allocation_basis }} | {{ meta.gwp_basis }} |
+
+| 최종 PCF | {{ meta.product_unit }}당 PCF | {{ meta.product_unit }}당 {{ meta.functional_unit }} | 총 생산량 | 총 배출량 |
+|---:|---:|---:|---:|---:|
+| **{{ result.final_pcf | num }} {{ result.pcf_unit }}** | {{ result.pcf_per_unit | num }} kgCO₂eq/{{ meta.product_unit }} | {{ result.fu_per_unit | num }} {{ meta.functional_unit }} | {{ result.total_units | num }} {{ meta.product_unit }} | {{ result.total_tco2eq | num }} tCO₂eq |
+
+{% for sp in sections %}
+## {{ sp.title }}
+
+{% set body = narratives.get(sp.id, '') | trim %}
+{% if body %}
+{{ body }}
+
+{% endif %}
+{% if sp.id == 'summary' %}
+**산정 목적 및 범위 (Goal & Scope)**
+
+| 항목 | 내용 |
+|---|---|
+| 산정 목적 | 제3자 검증기관 제출용 PCF 산출근거 제시 |
+| 시스템 경계 | {{ meta.system_boundary }} |
+| 기능단위 (Functional Unit) | 1 {{ meta.functional_unit }} |
+| 기준 제품단위 (Declared Unit) | 1 {{ meta.product_unit }} ({{ result.fu_per_unit | num }} {{ meta.functional_unit }}/{{ meta.product_unit }}) |
+| 할당 근거 | {{ meta.allocation_basis }} |
+| GWP 기준 | {{ meta.gwp_basis }} |
+| 적용 가정·제외 | {% if flags.boundary_partial %}사용·폐기 단계 제외(부분 경계); {% endif %}{% if flags.cutoff_applied %}재활용 회피배출 Cut-off 제외; {% endif %}{% if flags.data_maturity_proxy %}일부 3등급 Proxy 계수 포함{% endif %} |
+
+{% elif sp.id == 'lci' %}
+### 계산에 필요한 정보 (Methodology)
+
+**자재 인벤토리 (BOM)**
+
+| 구분 | 자재명 | 순중량(ton) | 불량률 | 투입요구량(ton) | EF값 | 배출(tCO₂eq) | EF 출처 |
+|---|---|---:|---:|---:|---:|---:|---|
+{% for m in materials %}
+| {{ m.category }} | {{ m.material_name }} | {{ m.net_weight_ton | num }} | {{ (m.defect_rate * 100) | num(1) }}% | {{ m.input_required_ton | num }} | {{ m.ef_value | factor }} | {{ m.emission_tco2eq | num }} | {{ m.ef_source }} |
+{% endfor %}
+| **합계** | | | | | | **{{ materials | sum(attribute='emission_tco2eq') | num }}** | |
+
+**공정 라우팅·할당**
+
+| 공정 | 공정명 | 할당 기준 |{% for ln in meta.lines %} {{ ln }} |{% endfor %}
+
+|---|---|---|{% for ln in meta.lines %}:---:|{% endfor %}
+
+{% for p in processes %}
+| {{ p.process_code }} | {{ p.process_name }} | {{ p.allocation_basis }} |{% for ln in meta.lines %} {{ 'O' if ln in p.lines else 'X' }} |{% endfor %}
+
+{% endfor %}
+
+**업스트림 운송** — 배출 = 투입(t·km) × EF(0.0001924, 톤 단위 정규화)
+
+| 자재 | 경로 | 수단 | 투입(t) | 거리(km) | t·km | 배출(tCO₂eq) |
+|---|---|---|---:|---:|---:|---:|
+{% for l in logistics %}
+| {{ l.material_name }} | {{ l.origin }} → {{ l.destination }} | {{ l.transport_mode }} | {{ l.input_ton | num }} | {{ l.distance_km | num }} | {{ l.t_km | num }} | {{ l.emission_tco2eq | num }} |
+{% endfor %}
+| **합계** | | | | | | **{{ logistics | sum(attribute='emission_tco2eq') | num }}** |
+
+**배출계수 (EF DB)**
+
+| EF 코드 | 활동 | 출처 | 단위 | 통합계수 |
+|---|---|---|---|---:|
+{% for e in emission_factors %}
+| {{ e.ef_code }} | {{ e.activity_name }} | {{ e.source }} | {{ e.unit }} | {{ e.integrated_factor | factor }} |
+{% endfor %}
+
+### 데이터 검증 (Validation)
+
+**질량수지 검증** — 투입 = 산출 + 폐기 정합성(LCI 데이터 유효성)
+
+| 투입(ton) | 산출(ton) | 폐기(ton) | 손실(ton) | 수율 | 검증 |
+|---:|---:|---:|---:|---:|:---:|
+| {{ mass_balance.input | num }} | {{ mass_balance.output | num }} | {{ mass_balance.waste | num }} | {{ mass_balance.loss | num }} | {{ (mass_balance.yield_ratio * 100) | num(1) }}% | {{ 'PASS' if mass_balance.is_valid else 'FAIL' }} |
+
+{% elif sp.id == 'lcia' %}
+**Scope별 배출 기여**
+
+| Scope | 배출활동 | 배출량(tCO₂eq) | 기여 비율 |
+|---|---|---:|---:|
+{% for b in breakdown %}
+| {{ b.scope }} | {{ b.activity }} | {{ b.total_tco2eq | num }} | {{ b.share_percent | num(2) }}% |
+{% endfor %}
+| **합계** | | **{{ breakdown | sum(attribute='total_tco2eq') | num }}** | 100.00% |
+
+**활동별 배출 산정 (LCI → LCIA)**
+
+| 배출활동 | 할당 전 | {{ meta.line_name }} 할당 | 단위 | 배출(tCO₂eq) | DQR 등급 |
+|---|---:|---:|---|---:|---|
+{% for e in emission_lines %}
+| {{ e.activity }} | {{ e.pre_alloc_qty | num }} | {{ e.alloc_qty | num }} | {{ e.unit }} | {{ e.total_tco2eq | num }} | {{ e.dqr_grade }} |
+{% endfor %}
+| **합계** | | | | **{{ emission_lines | sum(attribute='total_tco2eq') | num }}** | |
+
+{% elif sp.id == 'interpretation' %}
+**핵심 배출 기여원 (핫스팟)**
+
+| 배출원 | 배출량(tCO₂eq) | 기여 비율 | 비고 |
+|---|---:|---:|---|
+{% for h in hotspots %}
+| {{ h.label }} | {{ h.value | num }} | {{ h.share_percent | num(2) }}% | {{ h.note }} |
+{% endfor %}
+
+**민감도 분석** — 기여 상위 배출원 ±10/20% 변동 → 최종 PCF (ISO 14067 §6.6)
+
+| 시나리오 | 변동 후 총배출(tCO₂eq) | 최종 PCF({{ result.pcf_unit }}) |
+|---|---:|---:|
+{% for s in sensitivity %}
+| {{ s.parameter }} {% if s.delta_percent == 0 %}기준{% else %}{{ '%+d' | format(s.delta_percent | int) }}%{% endif %} | {{ s.new_total_tco2eq | num }} | {{ s.new_pcf | num }} |
+{% endfor %}
+
+{% elif sp.id == 'governance' %}
+**데이터 품질(DQR)**
+
+| 1차 데이터 비중 | 목표 | 미매핑 대기 |
+|---:|---:|---:|
+| {{ (dqr.primary_data_ratio * 100) | num(0) }}% | {{ (dqr.target_ratio * 100) | num(0) }}% | {{ dqr.unmapped_pending }} |
+
+**추적성 (WORM 감사로그)**
+
+| 시각 | 주체 | 이벤트 | 내용 | 상태 |
+|---|---|---|---|---|
+{% for a in audit_log %}
+| {{ a.timestamp }} | {{ a.actor }} | {{ a.event_type }} | {{ a.detail }} | {{ a.status }} |
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+## 고지
+
+{% if flags.is_ai_generated %}
+- [AI 생성] 서술 문장은 AI가 작성했으며, 수치는 시스템이 산정·삽입했습니다(에이전트는 수치를 생성·변경하지 않습니다).
+{% endif %}
+{% if flags.boundary_partial %}
+- [부분 경계] 본 산정은 {{ meta.system_boundary }} 범위이며, Cradle-to-Grave가 아닙니다.
+{% endif %}
+{% if flags.data_maturity_proxy %}
+- [데이터 성숙도] 원부자재 배출계수는 글로벌 Proxy(3등급)를 포함하며, 정식 검증 시 1차 데이터로 대체됩니다.
+{% endif %}
+{% if flags.cutoff_applied %}
+- [Cut-off] 재활용 회피 배출은 ISO 14067 Cut-off 규칙으로 제외했습니다.
+{% endif %}
+- [GWP 기준] {{ flags.gwp_note }}.

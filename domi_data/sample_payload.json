@@ -1,0 +1,125 @@
+{
+  "_comment": "backend가 report_id 조회 시 반환할 도메인 JSON의 샘플(더미 기반, LCA 프로젝트 더미데이터_2차 수정본.xlsx v21.0 Full-BOM 확정본). 파생값(scope 비율/질량수지 오차/breakdown 기여%/hotspots/자재·운송 배출)은 포함하지 않는다 — collect가 코드로 계산한다. ※ 전극 LNG 배출량은 엑셀 4단계 값(×1000 보정 포함)을 그대로 옮김.",
+  "meta": {
+    "report_id": 101,
+    "product_name": "EV-Pouch-Gen3 (Line A)",
+    "line_name": "Line A",
+    "lines": ["Line A", "Line C"],
+    "company_name": "가온에너지솔루션",
+    "site_name": "청원 1공장",
+    "reporting_period": "2026-06",
+    "status": "Locked",
+    "allocation_basis": "FEMS 실측",
+    "gwp_basis": "IPCC AR2",
+    "system_boundary": "Gate-to-Gate + Upstream Material + Inbound Transport",
+    "functional_unit": "kWh",
+    "product_unit": "팩"
+  },
+  "result": {
+    "final_pcf": 1084.983418,
+    "pcf_per_unit": 81373.75634,
+    "fu_per_unit": 75.0,
+    "total_units": 50000,
+    "total_tco2eq": 4068687.817,
+    "scope1_tco2eq": 3645618.063,
+    "scope2_tco2eq": 124964.5546,
+    "scope3_upstream_tco2eq": 296969.78,
+    "scope3_other_tco2eq": 1135.418998
+  },
+  "mass_balance": {
+    "input": 52631,
+    "output": 50000,
+    "waste": 2631,
+    "unit": "ton"
+  },
+  "materials": [
+    {"category": "원자재", "material_name": "양극재 (NCM811)", "ef_code": "EF_NCM", "net_weight_ton": 11250, "defect_rate": 0.0, "input_required_ton": 11250},
+    {"category": "원자재", "material_name": "음극재 (천연/인조 흑연)", "ef_code": "EF_ANODE", "net_weight_ton": 8250, "defect_rate": 0.0, "input_required_ton": 8250},
+    {"category": "부자재", "material_name": "알루미늄 팩 하우징", "ef_code": "EF_AL_PLATE", "net_weight_ton": 6300, "defect_rate": 0.0, "input_required_ton": 6300},
+    {"category": "원자재", "material_name": "양극 집전체 (알루미늄 박)", "ef_code": "EF_AL_FOIL", "net_weight_ton": 1296, "defect_rate": 0.0, "input_required_ton": 1296},
+    {"category": "원자재", "material_name": "음극 집전체 (동박)", "ef_code": "EF_COPPER_FOIL", "net_weight_ton": 3600, "defect_rate": 0.0, "input_required_ton": 3600},
+    {"category": "부자재", "material_name": "전해액 (Electrolyte)", "ef_code": "EF_ELECTROLYTE", "net_weight_ton": 5000, "defect_rate": 0.0, "input_required_ton": 5000},
+    {"category": "부자재", "material_name": "분리막 (Separator)", "ef_code": "EF_SEPARATOR", "net_weight_ton": 2500, "defect_rate": 0.0, "input_required_ton": 2500},
+    {"category": "부자재", "material_name": "바인더 및 도전재", "ef_code": "EF_BINDER", "net_weight_ton": 1500, "defect_rate": 0.0, "input_required_ton": 1500},
+    {"category": "부자재", "material_name": "포장재 및 기타 제조 소모품", "ef_code": "EF_PACKAGING", "net_weight_ton": 12935, "defect_rate": 0.0, "input_required_ton": 12935}
+  ],
+  "processes": [
+    {"process_code": "PROC-1", "process_name": "전극 공정", "allocation_basis": "생산 질량 비례", "energy_source": "[FEMS 실측 전력 연동] 공통 공정 ➔ 생산량 기반 분배", "lines": ["Line A", "Line C"]},
+    {"process_code": "PROC-2", "process_name": "파우치 조립", "allocation_basis": "생산 질량 비례", "energy_source": "[FEMS 실측 전력 연동] 공통 공정 ➔ 생산량 기반 분배", "lines": ["Line A", "Line C"]},
+    {"process_code": "PROC-3", "process_name": "활성화 공정", "allocation_basis": "체류 시간 비례", "energy_source": "[FEMS 실측 전력 연동] 공통 공정 ➔ 체류시간 기반 분배", "lines": ["Line A", "Line C"]},
+    {"process_code": "PROC-4", "process_name": "팩 조립", "allocation_basis": "100% 직접 귀속", "energy_source": "[FEMS 실측 전력 연동] EV 팩 전용 공정 ➔ 100% 귀속", "lines": ["Line A"]}
+  ],
+  "emission_factors": [
+    {"ef_code": "EF_ELEC", "activity_name": "전력 (Scope 2)", "source": "국가 온실가스 인벤토리", "unit": "MWh", "co2_factor": 0.4567, "ch4_factor": 0.0036, "n2o_factor": 0.0085, "integrated_factor": 3.1673, "logic": "개별가스 × GWP 합산"},
+    {"ef_code": "EF_LNG", "activity_name": "LNG (Scope 1)", "source": "배출권거래제(K-ETS) 지침", "unit": "천m3", "co2_factor": 56100.0, "ch4_factor": 1.0, "n2o_factor": 0.1, "integrated_factor": 2.1843128, "logic": "(가스합산) × 순발열량 ÷ 1000"},
+    {"ef_code": "EF_NCM", "activity_name": "양극재 (NCM811)", "source": "Ecoinvent 3.9 (글로벌 평균)", "unit": "ton", "co2_factor": 15.4, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 15.4, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_ANODE", "activity_name": "음극재 (흑연)", "source": "Ecoinvent 3.9 (글로벌 평균)", "unit": "ton", "co2_factor": 1.62, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 1.62, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_AL_PLATE", "activity_name": "알루미늄 팩 하우징", "source": "환경부 국가 LCI DB", "unit": "ton", "co2_factor": 1.9566, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 1.9566, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_AL_FOIL", "activity_name": "양극 집전체 (알루미늄 박)", "source": "환경부 국가 LCI DB", "unit": "ton", "co2_factor": 11.2, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 11.2, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_COPPER_FOIL", "activity_name": "음극 집전체 (동박)", "source": "Ecoinvent 3.9", "unit": "ton", "co2_factor": 6.8, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 6.8, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_ELECTROLYTE", "activity_name": "전해액 (Electrolyte)", "source": "협력사 제공 EPD 프록시", "unit": "ton", "co2_factor": 3.2, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 3.2, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_SEPARATOR", "activity_name": "분리막 (Separator)", "source": "Ecoinvent 3.9", "unit": "ton", "co2_factor": 2.8, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 2.8, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_BINDER", "activity_name": "바인더 및 도전재", "source": "글로벌 화학 자재 인벤토리", "unit": "ton", "co2_factor": 8.5, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 8.5, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_PACKAGING", "activity_name": "포장재 및 기타 제조 소모품", "source": "환경부 폐기물 포장 인벤토리", "unit": "ton", "co2_factor": 1.8, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 1.8, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_WST_1", "activity_name": "지정폐기물 소각", "source": "환경부 국가 LCI DB", "unit": "ton", "co2_factor": 1.1, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 1.1, "logic": "통합계수 직결산"},
+    {"ef_code": "EF_WST_2", "activity_name": "폐비철 재활용", "source": "ISO 14067 Cut-off Rule", "unit": "ton", "co2_factor": 0.0, "ch4_factor": null, "n2o_factor": null, "integrated_factor": 0, "logic": "Cut-off (Zero 처리)"},
+    {"ef_code": "EF_TRUCK", "activity_name": "트럭 운송 (t-km)", "source": "환경부 국가 LCI DB", "unit": "t·km", "co2_factor": 0.0001924, "ch4_factor": 0, "n2o_factor": 0, "integrated_factor": 0.0001924, "logic": "(0.1924 kg ÷ 1000) 톤 단위 정규화 → 배출량 = t·km × 0.0001924 = tCO2eq"}
+  ],
+  "emission_lines": [
+    {"activity": "전극 전력 (질량비례)", "pre_alloc_qty": 32000, "alloc_qty": 16000, "unit": "MWh", "ef_code": "EF_ELEC", "co2_t": 7307.2, "ch4_t": 57.6, "n2o_t": 136, "total_tco2eq": 50676.8, "dqr_grade": "1등급 (FEMS 실측)", "alloc_logic": "FEMS × 생산 질량 비중"},
+    {"activity": "전극 LNG (질량비례)", "pre_alloc_qty": 3338, "alloc_qty": 1669, "unit": "천m3", "ef_code": "EF_LNG", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 3645618.063, "dqr_grade": "1등급 (FEMS 실측)", "alloc_logic": "FEMS × 통합계수 1000배 보정"},
+    {"activity": "조립 전력 (질량비례)", "pre_alloc_qty": 15000, "alloc_qty": 7500, "unit": "MWh", "ef_code": "EF_ELEC", "co2_t": 3425.25, "ch4_t": 27, "n2o_t": 63.75, "total_tco2eq": 23754.75, "dqr_grade": "1등급 (FEMS 실측)", "alloc_logic": "FEMS × 생산 질량 비중"},
+    {"activity": "활성화 전력 (체류시간)", "pre_alloc_qty": 24591, "alloc_qty": 14754.6, "unit": "MWh", "ef_code": "EF_ELEC", "co2_t": 6738.42582, "ch4_t": 53.11656, "n2o_t": 125.4141, "total_tco2eq": 46732.24458, "dqr_grade": "1등급 (FEMS 실측)", "alloc_logic": "FEMS × 체류 시간 비중"},
+    {"activity": "팩조립 전력 (전용 100%)", "pre_alloc_qty": 1200, "alloc_qty": 1200, "unit": "MWh", "ef_code": "EF_ELEC", "co2_t": 548.04, "ch4_t": 4.32, "n2o_t": 10.2, "total_tco2eq": 3800.76, "dqr_grade": "1등급 (FEMS 실측)", "alloc_logic": "FEMS × 100% 직접 귀속"},
+    {"activity": "원자재-양극재 (NCM811)", "pre_alloc_qty": 11250, "alloc_qty": 11250, "unit": "ton", "ef_code": "EF_NCM", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 173250, "dqr_grade": "3등급 (글로벌 Proxy)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "원자재-음극재 (흑연)", "pre_alloc_qty": 8250, "alloc_qty": 8250, "unit": "ton", "ef_code": "EF_ANODE", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 13365, "dqr_grade": "3등급 (글로벌 Proxy)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "부자재-알루미늄 팩 하우징", "pre_alloc_qty": 6300, "alloc_qty": 6300, "unit": "ton", "ef_code": "EF_AL_PLATE", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 12326.58, "dqr_grade": "3등급 (국가 LCI)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "원자재-양극 집전체 (박)", "pre_alloc_qty": 1296, "alloc_qty": 1296, "unit": "ton", "ef_code": "EF_AL_FOIL", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 14515.2, "dqr_grade": "3등급 (국가 LCI)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "원자재-음극 집전체 (동박)", "pre_alloc_qty": 3600, "alloc_qty": 3600, "unit": "ton", "ef_code": "EF_COPPER_FOIL", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 24480, "dqr_grade": "3등급 (글로벌 Proxy)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "부자재-전해액 (Electrolyte)", "pre_alloc_qty": 5000, "alloc_qty": 5000, "unit": "ton", "ef_code": "EF_ELECTROLYTE", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 16000, "dqr_grade": "3등급 (협력사 프록시)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "부자재-분리막 (Separator)", "pre_alloc_qty": 2500, "alloc_qty": 2500, "unit": "ton", "ef_code": "EF_SEPARATOR", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 7000, "dqr_grade": "3등급 (글로벌 Proxy)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "부자재-바인더 및 도전재", "pre_alloc_qty": 1500, "alloc_qty": 1500, "unit": "ton", "ef_code": "EF_BINDER", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 12750, "dqr_grade": "3등급 (글로벌 Proxy)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "부자재-포장재 및 기타 제조 소모품", "pre_alloc_qty": 12935, "alloc_qty": 12935, "unit": "ton", "ef_code": "EF_PACKAGING", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 23283, "dqr_grade": "3등급 (국가 LCI)", "alloc_logic": "BOM 총 투입요구량 직결산"},
+    {"activity": "전극 지정폐기물 (소각)", "pre_alloc_qty": 400, "alloc_qty": 200, "unit": "ton", "ef_code": "EF_WST_1", "co2_t": null, "ch4_t": null, "n2o_t": null, "total_tco2eq": 220, "dqr_grade": "2등급 (하이브리드)", "alloc_logic": "발생량 × 생산 질량 비중"},
+    {"activity": "조립 비철금속 (재활용)", "pre_alloc_qty": 2231, "alloc_qty": 0, "unit": "ton", "ef_code": "EF_WST_2", "co2_t": 0, "ch4_t": null, "n2o_t": null, "total_tco2eq": 0, "dqr_grade": "2등급 (하이브리드)", "alloc_logic": "재활용 회피 배출 제외 (Cut-off)"},
+    {"activity": "양극재 수송 물류 (t-km)", "pre_alloc_qty": 1687500, "alloc_qty": 1687500, "unit": "t-km", "ef_code": "EF_TRUCK", "co2_t": 324.675, "ch4_t": 0, "n2o_t": 0, "total_tco2eq": 324.675, "dqr_grade": "2등급 (거리추산)", "alloc_logic": "투입량 × 물류 대표 거리"},
+    {"activity": "음극재 수송 물류 (t-km)", "pre_alloc_qty": 1485000, "alloc_qty": 1485000, "unit": "t-km", "ef_code": "EF_TRUCK", "co2_t": 285.714, "ch4_t": 0, "n2o_t": 0, "total_tco2eq": 285.714, "dqr_grade": "2등급 (거리추산)", "alloc_logic": "투입량 × 물류 대표 거리"},
+    {"activity": "하우징 수송 물류 (t-km)", "pre_alloc_qty": 378000, "alloc_qty": 378000, "unit": "t-km", "ef_code": "EF_TRUCK", "co2_t": 72.7272, "ch4_t": 0, "n2o_t": 0, "total_tco2eq": 72.7272, "dqr_grade": "2등급 (거리추산)", "alloc_logic": "투입량 × 물류 대표 거리"},
+    {"activity": "기타 자재 수송 물류 (t-km)", "pre_alloc_qty": 1207395, "alloc_qty": 1207395, "unit": "t-km", "ef_code": "EF_TRUCK", "co2_t": 232.302798, "ch4_t": 0, "n2o_t": 0, "total_tco2eq": 232.302798, "dqr_grade": "2등급 (거리추산)", "alloc_logic": "기타 자재합산 × 대표 거리"}
+  ],
+  "logistics": [
+    {"material_name": "양극재 (NCM811)", "origin": "평택항 물류 기지", "destination": "청원 1공장", "transport_mode": "25t 디젤 트럭", "distance_km": 150, "ef_code": "EF_TRUCK"},
+    {"material_name": "음극재 (천연/인조 흑연)", "origin": "국내 포항 공장", "destination": "청원 1공장", "transport_mode": "25t 디젤 트럭", "distance_km": 180, "ef_code": "EF_TRUCK"},
+    {"material_name": "알루미늄 팩 하우징", "origin": "천안 압출 공장", "destination": "청원 1공장", "transport_mode": "25t 디젤 트럭", "distance_km": 60, "ef_code": "EF_TRUCK"},
+    {"material_name": "양극 집전체 (알루미늄 박)", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"},
+    {"material_name": "음극 집전체 (동박)", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"},
+    {"material_name": "전해액 (Electrolyte)", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"},
+    {"material_name": "분리막 (Separator)", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"},
+    {"material_name": "바인더 및 도전재", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"},
+    {"material_name": "포장재 및 기타 제조 소모품", "origin": "사내 인근 허브", "destination": "청원 1공장", "transport_mode": "5t 중형 트럭", "distance_km": 45, "ef_code": "EF_TRUCK"}
+  ],
+  "breakdown": [
+    {"scope": "Scope 1", "activity": "LNG (직접배출)", "total_tco2eq": 3645618.063, "alloc_logic": "FEMS 실측 × 생산 질량 비중", "source": "배출권거래제(K-ETS) 지침"},
+    {"scope": "Scope 2", "activity": "제조 전력 (전극/조립/활성/팩)", "total_tco2eq": 124964.5546, "alloc_logic": "FEMS 실측 기반 공정별 다중 할당 엔진 가동", "source": "국가 온실가스 인벤토리"},
+    {"scope": "Scope 3", "activity": "핵심 양극재 (NCM811)", "total_tco2eq": 173250, "alloc_logic": "BOM 총 투입요구량 직결산 (무결성 연동)", "source": "Ecoinvent 3.9 (글로벌 평균)"},
+    {"scope": "Scope 3", "activity": "기타 원부자재 그룹 (Full-BOM)", "total_tco2eq": 123719.78, "alloc_logic": "Full-BOM 마스터 기반 연산 파이프라인", "source": "국가 LCI DB / 협력사 EPD 프록시"},
+    {"scope": "Scope 3", "activity": "Inbound 운송 및 공정 폐기물", "total_tco2eq": 1135.418998, "alloc_logic": "물류 대표 거리 추산 및 Cut-off 가동", "source": "환경부 LCI DB / ISO 표준 규격"}
+  ],
+  "dqr": {
+    "primary_data_ratio": 0.85,
+    "target_ratio": 0.80,
+    "unmapped_pending": 0
+  },
+  "audit_log": [
+    {"timestamp": "2026-07-01 01:00", "actor": "System (API)", "event_type": "DATA_SYNC", "detail": "6월 MES 생산 실적 및 FEMS 에너지 실적 원본 수집 완료", "status": "Submitted"},
+    {"timestamp": "2026-07-01 01:05", "actor": "System (AI)", "event_type": "NORMALIZATION", "detail": "[AI Agent] 알미늄 쪼가리 ➔ 폐비철금속 재활용 (신뢰도 61% / 임계치 미달)", "status": "Pending_Review"},
+    {"timestamp": "2026-07-01 01:06", "actor": "System (AI)", "event_type": "UNMAPPED_DATA", "detail": "신규 자재 코드(MAT-NEW-001) 감지. 기준정보 미존재로 매핑 실패. ESG 담당자 검토 요청", "status": "Pending_Review"},
+    {"timestamp": "2026-07-01 08:30", "actor": "User (EHS팀)", "event_type": "MANUAL_APPROVAL", "detail": "수동 확인: 폐알루미늄 재활용 및 MAT-NEW-001(신규 접착제) 매핑 확정 완료", "status": "Approved"},
+    {"timestamp": "2026-07-01 09:10", "actor": "System (Rule)", "event_type": "ROUTING_MISMATCH", "detail": "[오류] EV 파우치 팩이 원통형 조립 라인(Line C) 실적으로 기입됨. 라우팅 테이블(BOP) 불일치", "status": "Pending_Review"},
+    {"timestamp": "2026-07-01 09:12", "actor": "User (생산팀)", "event_type": "MANUAL_CORRECTION", "detail": "실적 기입 오타 수정 완료 (Line C ➔ Line A). 라우팅 검증 통과", "status": "Corrected"},
+    {"timestamp": "2026-07-01 09:15", "actor": "System (Rule)", "event_type": "MASS_BALANCE", "detail": "Line A 생산물질수지 52,631t = 50,000t + 2,631t 정합성 검증 성공", "status": "Validating"},
+    {"timestamp": "2026-07-01 09:16", "actor": "System (Rule)", "event_type": "ANOMALY_DETECT", "detail": "활성화 공정 전력 사용량 전월대비 +48% 과다 검출. 담당자 소명 요청 발송", "status": "Pending_Review"},
+    {"timestamp": "2026-07-01 11:20", "actor": "User (생산팀)", "event_type": "AUDIT_MEMO", "detail": "이상치 소명 기입: 냉각기 고장으로 인한 공회전 발생 인정 및 해당 전력 실적 동결", "status": "Frozen"},
+    {"timestamp": "2026-07-03 14:30", "actor": "User (ESG총괄)", "event_type": "FINAL_LOCK", "detail": "모든 할당 및 산출 완료. 최종 PCF 인증기관 제출용 스냅샷 영구 동결", "status": "Locked"}
+  ]
+}

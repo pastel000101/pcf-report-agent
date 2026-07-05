@@ -1,0 +1,16 @@
+langgraph
+langchain
+langchain-anthropic
+langchain-chroma
+langchain-ollama
+langchain-community
+langchain-tavily
+python-dotenv
+pydantic
+jinja2
+markdown
+weasyprint
+matplotlib
+# ※ weasyprint는 Windows에서 GTK3 런타임(네이티브 DLL)이 별도로 필요하다.
+#   pdf/to_pdf.py 가 ~/gtk3-runtime/bin 등을 os.add_dll_directory로 등록한다.
+#   설치: GTK3 런타임 인스톨러(tschoonj) → C:\Users\<id>\gtk3-runtime 등.

@@ -1,0 +1,115 @@
+/*
+report.css — PDF 레이아웃·폰트·페이지 규칙 [pdf 패키지 / LLM 무관]
+
+WeasyPrint(CSS Paged Media)용 스타일시트. 표/한글 폰트/페이지번호/머리글을 여기서 제어한다.
+폰트는 동봉 .ttf(pdf/fonts/)를 @font-face로 '임베딩'한다 → 어느 머신에서도 동일 출력.
+url()은 이 css 파일 위치(pdf/) 기준 상대경로로 해석된다.
+*/
+
+/* --- 한글 폰트 동봉 임베딩 (Pretendard) --- */
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 400;
+  src: url("fonts/Pretendard-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 700;
+  src: url("fonts/Pretendard-Bold.ttf") format("truetype");
+}
+
+/* --- 페이지(A4) + 페이지번호 + 머리글 --- */
+@page {
+  size: A4;
+  margin: 20mm 18mm 18mm 18mm;
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-family: "Pretendard";
+    font-size: 9pt;
+    color: #888;
+  }
+  @top-right {
+    content: string(doctitle);
+    font-family: "Pretendard";
+    font-size: 8pt;
+    color: #aaa;
+  }
+}
+/* 표지(첫 페이지)에는 머리글을 비운다 */
+@page :first {
+  @top-right { content: ""; }
+}
+
+/* --- 본문 기본 --- */
+body {
+  font-family: "Pretendard";
+  font-size: 10pt;
+  line-height: 1.6;
+  color: #1a1a1a;
+}
+
+/* h1 = 보고서 제목. 이후 페이지 머리글(running header)로도 사용 */
+h1 {
+  string-set: doctitle content();
+  font-size: 19pt;
+  font-weight: 700;
+  margin: 0 0 14pt 0;
+  padding-bottom: 8pt;
+  border-bottom: 2px solid #222;
+}
+
+h2 {
+  font-size: 13.5pt;
+  font-weight: 700;
+  margin: 20pt 0 8pt 0;
+  padding-left: 7pt;
+  border-left: 4px solid #2a6;
+  break-after: avoid;            /* 제목 직후 페이지 분리 방지 */
+}
+
+h3, strong + br { font-weight: 700; }
+
+/* 좌측 정렬 — justify는 한글에서 어절 공백을 과하게 늘려 '띄어쓰기 벌어짐'을 만든다
+   (긴 숫자 토큰이 안 끊겨 더 심함). 좌측 정렬이 한글 보고서 표준. */
+p { margin: 6pt 0; text-align: left; }
+
+/* 표 직전의 굵은 설명문(예: **자재 인벤토리 (BOM)**) */
+p > strong:only-child { display: inline-block; margin-top: 6pt; font-size: 10.5pt; }
+
+/* --- 표 --- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 6pt 0 12pt 0;
+  font-size: 8.7pt;
+  break-inside: avoid;           /* 표가 페이지 경계에서 잘리지 않게(작은 표) */
+}
+thead { display: table-header-group; }   /* 큰 표가 넘어가면 머리행 반복 */
+th, td {
+  border: 0.5pt solid #bbb;
+  padding: 3pt 5pt;
+  vertical-align: top;
+}
+th {
+  background: #f0f4f2;
+  font-weight: 700;
+  text-align: center;
+}
+tr { break-inside: avoid; }
+/* 합계행(마지막 행) 강조 */
+tbody tr:last-child { background: #fafafa; }
+
+/* --- 차트(figure.chart) — 섹션 끝에 코드가 주입한 SVG --- */
+figure.chart {
+  margin: 10pt auto 14pt auto;
+  text-align: center;
+  break-inside: avoid;           /* 차트가 페이지 경계에서 잘리지 않게 */
+}
+figure.chart img {
+  max-width: 88%;
+  height: auto;
+}
+
+/* --- 고지(마지막 리스트) --- */
+ul { margin: 6pt 0; padding-left: 16pt; }
+li { margin: 3pt 0; font-size: 9pt; color: #444; }

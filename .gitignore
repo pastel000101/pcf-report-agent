@@ -1,0 +1,25 @@
+# 환경 변수·비밀 (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# 파이썬
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 런타임 산출물
+output/
+*.log
+
+# RAG 인덱스·ISO 표준 문서 (저작권 보호 대상 — data/README.md 참조)
+rag/chroma_db/
+data/ISO*
+data/*_chunks.json
+
+# 에디터·OS
+.DS_Store
+.idea/
+.vscode/
