@@ -65,8 +65,8 @@
 
 ### 1-4. 실행 전제조건
 - **Ollama 서버 가동**(retrieve의 임베딩) — 안 떠 있으면 retrieve에서 `ConnectionError`.
-- `.env`: `ANTHROPIC_API_KEY`, (선택) `LLM_{EDIT|VERIFY|WORKER}_MODEL/_TEMP`.
-- PDF: WeasyPrint + GTK 런타임(Windows). 없으면 .md만 산출(치명적 아님).
+- **Ollama 서술 모델**(worker/verify/assemble/editorial) — `ollama pull` 로 받아둔다. `.env`는 전부 선택: `OLLAMA_GENERATION_MODEL`, `LLM_{EDIT|VERIFY|WORKER}_MODEL/_TEMP`, 생성 옵션(`OLLAMA_NUM_CTX` 등).
+- PDF: reportlab(순수 Python) — 별도 네이티브 런타임이 필요 없다. 실패해도 .md는 정상 산출(치명적 아님).
 
 ---
 
@@ -89,20 +89,22 @@
 - **입력**: `outline`.
 - **하는 일**: `RAG_SECTIONS`(lci·lcia·interpretation·governance — summary·conclusion은 준수단정 유발로 구조적 제외)에 대해:
   `_queries(sp)`가 "목표 1건 + must_cover 항목별 1건"의 짧은 질의로 분해 →
-  [rag/retriever.py](../rag/retriever.py) `search(query, k)`(Chroma 벡터스토어 + Ollama bge-m3 임베딩, ISO 14067/14044 청크) →
+  [rag/retriever.py](../rag/retriever.py) `search(query, k)`(Chroma + Ollama bge-m3 임베딩 — ISO 14067·14044 **두 컬렉션을 각각 검색해 거리 기준으로 병합** 상위 k. 조항 번호로 만든 청크 id가 표준 간 겹치므로 반환 id는 `컬렉션:청크id`로 네임스페이스한다) →
   `_interleave()` rank 인터리브 → `_select()` 선별 가드(정의 조항 ≤2 `MAX_DEFINITIONS`, 같은 조항 ≤2 `MAX_PER_CLAUSE`, 앞 섹션 중복 배제 + `MIN_PER_SECTION` 보충).
+  ※ 두 표준이 같은 근거 풀을 나누게 되어 `K_PER_SECTION` 8→12, `K_PER_QUERY` 5→6으로 증량(2026-07).
 - **출력**: `{"evidence": {섹션id: [청크,…]}}` → **dispatch**로.
 
 ### ④ dispatch — [node/dispatch.py](../node/dispatch.py) `dispatch(state)` — LLM ✗
 - **입력**: `data_pack`, `outline`, `evidence`.
-- **하는 일**: 섹션별 팩트 빌더 `FACT_BUILDERS`(`_facts_summary`/`_facts_lci`/`_facts_lcia`/`_facts_interp`/`_facts_governance`/`_facts_conclusion`)가 DataPack에서 **라벨된 사실 문장(facts)**을 코드로 포맷(숫자 포맷은 표 렌더와 동일한 [support/slots.py](../support/slots.py) `_num` 재사용 → 표↔서술 드리프트 방지). `_method_facts()`(산정 경계·GWP·할당)는 전 섹션 공통 주입.
-- **출력**: `{"packages": [WorkerPackage ×6]}` (facts + evidence_slice + outline + fewshot 자리) → 분기점으로.
+- **하는 일**: 섹션별 팩트 빌더 `FACT_BUILDERS`(`_facts_summary`/`_facts_lci`/`_facts_lcia`/`_facts_interp`/`_facts_governance`/`_facts_conclusion`)가 DataPack에서 **라벨된 사실 문장(facts)**을 코드로 포맷(숫자 포맷은 표 렌더와 동일한 [support/slots.py](../support/slots.py) `_num` 재사용 → 표↔서술 드리프트 방지). `_method_facts()`(산정 경계·GWP·할당)는 용어 통일을 위해 전 섹션 공통 주입하되, 해당 주제가 그 섹션의 `must_cover`에 없으면 fact에 **'참조용' 꼬리표**를 붙인다 — 안 붙이면 모든 worker가 첫머리에 같은 경계 선언 문장을 얹어 4개 섹션에 중복됐다(2026-07). 비율 fact는 라벨에 분모('전체 배출량의')를 박아 Scope 내부 비중으로 오독되는 것을 막는다(숫자가 아니라 관계 서술 오류라 verify가 못 잡는다).
+- **출력**: `{"packages": [WorkerPackage ×6]}` (facts + evidence_slice + outline + fewshot) → 분기점으로.
+  `fewshot`은 [support/prompts.py](../support/prompts.py) `FEWSHOT_BY_SECTION[sp.id]` — 섹션별 포맷 예시로 문장 구조·논증 순서·분모 표현을 고정해 런 간 분량 편차를 줄인다. 수치·항목명은 전부 자리표시자(◇◇·NN)로 써서 가짜 값이 본문으로 새는 경로를 차단한다.
 
 ### ⑤ 팬아웃 — [support/routes.py](../support/routes.py) `fan_out_workers(state)`
 - packages를 `Send("worker", pkg.model_dump())` ×N으로 변환 → **worker 6개가 병렬 실행**.
   각 Send의 payload가 그 worker 인스턴스의 입력 state가 된다(전체 state가 아님!).
 
-### ⑥ worker — [node/worker.py](../node/worker.py) `worker(state)` — **LLM ✓** (Haiku, temp 0.4)
+### ⑥ worker — [node/worker.py](../node/worker.py) `worker(state)` — **LLM ✓** (temp 0.4)
 - **입력**: WorkerPackage dump(`section_id`, `facts`, `evidence_slice`, `outline`, `prev_summaries`, `fewshot`, `feedback`).
 - **하는 일**: `_find_section()`으로 담당 섹션 기획을 찾고, human 메시지([담당 섹션]/[전체 목차]/[핵심 사실]/[참고 문서]/[지시]…) 구성. **재작성 호출이면** `feedback`(누적 지적)을 `[수정 요청]`+`[우선순위]`(facts에 없는 수치 요구는 무시하라) 블록으로 동봉.
   LLM: [llm/llm_model.py](../llm/llm_model.py) `worker_llm()` + `cached_system(WORKER_SYSTEM)`([support/prompts.py](../support/prompts.py)) + `with_structured_output(SectionDraft)`.
@@ -141,7 +143,7 @@
 - **하는 일**:
   1. [pdf](../pdf/__init__.py) `embed_datapack(md, dp)` — .md 끝에 DataPack(JSON)을 HTML 주석으로 임베드 → `output/{stem}.md` 저장(`_report_stem()`이 파일명 확정).
   2. `_write_data_gaps()` — `data_gap_log`(editorial 전 라운드 누적)를 `{stem}_data_gaps.md` 백로그로 산출(사람이 취사선택; 자동 반영 금지).
-  3. [pdf/to_pdf.py](../pdf/to_pdf.py) `md_to_pdf(md, path, title)` — WeasyPrint(+GTK)로 PDF 병행 산출. 차트는 임베드된 DataPack에서 [pdf/charts.py](../pdf/charts.py)가 재생성해 표 위에 주입. 실패해도 .md는 유지.
+  3. [pdf/to_pdf.py](../pdf/to_pdf.py) `md_to_pdf(md, path, title)` — reportlab으로 PDF 병행 산출(md를 직접 파싱해 Flowables로 조판, 동봉 Pretendard 폰트 등록). 차트는 임베드된 DataPack에서 [pdf/charts.py](../pdf/charts.py)가 PNG로 재생성해 표 위에 주입. 실패해도 .md는 유지.
 - **출력**: `{"output_path", "output_pdf_path", "data_gaps_path"}` → **END**. `run()`이 최종 state를 반환.
 
 ---
@@ -172,12 +174,12 @@
 
 | 역할 함수 | 쓰는 노드 | .env 키 | 기본 모델 | 기본 온도 |
 |---|---|---|---|---|
-| `worker_llm()` | worker | `LLM_WORKER_MODEL/_TEMP` | claude-haiku-4-5-20251001 | 0.4 (서술 자연스러움) |
+| `worker_llm()` | worker | `LLM_WORKER_MODEL/_TEMP` | `OLLAMA_GENERATION_MODEL` | 0.4 (서술 자연스러움) |
 | `edit_llm()` | assemble | `LLM_EDIT_MODEL/_TEMP` | 〃 | 0.2 (저온 편집) |
 | `verify_llm()` | verify(grader), editorial | `LLM_VERIFY_MODEL/_TEMP` | 〃 | 0.0 (결정적 판정) |
 
-- 공통: `_build(role, default_temp)`가 .env에서 모델·온도를 읽어 `ChatAnthropic` 생성. 모든 호출부는 `cached_system(텍스트)`로 시스템 프롬프트에 `cache_control: ephemeral`을 건다.
-- ⚠️ **캐시 실측(2026-07-04)**: 4개 시스템 프롬프트 전부 Haiku 4.5 최소 캐시 프리픽스(4,096tok) 미만(WORKER≈2.5K)이라 **현재 캐시는 전 역할 미적용**(조용히 무시, 에러 없음). 활성화 경로: 섹션별 Few-shot을 시스템 프롬프트 뒤에 붙여 4,096 초과 or Sonnet 계열 전환.
+- 공통: `_build(role, default_temp)`가 호출 시점마다 .env를 다시 읽어(`load_dotenv(override=True)`) `ChatOllama`를 만든다 — 서버 재시작 없이 모델·온도를 바꿀 수 있다. 호출부는 `cached_system(텍스트)`로 시스템 프롬프트를 만든다.
+- ⚠️ **로컬 모델 대응(2026-07-12)**: 소형·양자화 모델에서 다음 3개를 명시하지 않으면 파이프라인이 조용히 깨진다 — `num_ctx`(기본 4,096을 넘으면 프롬프트 '앞부분'=시스템 규칙부터 잘려 규칙 위반이 샌다), `repeat_penalty`(미설정 시 꺼져 JSON 생성 중 같은 어절을 무한 반복), `think=false`(사고 과정이 출력 토큰을 소진해 `content`가 빈 문자열로 와 구조화 출력 파싱 실패). 각 값의 배경은 [llm/llm_model.py](../llm/llm_model.py) 주석 참조.
 - 프롬프트 원문: [support/prompts.py](../support/prompts.py) — `WORKER_SYSTEM`/`EDIT_SYSTEM`/`VERIFY_SYSTEM`/`EDITORIAL_SYSTEM`(+공통 `DOC_CONTEXT` '제시' 자세). 구조화 출력 스키마: [state/models.py](../state/models.py).
 
 ---

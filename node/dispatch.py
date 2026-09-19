@@ -24,6 +24,7 @@ dispatch.py — 메인: 분배 · 섹션별 '팩트시트' 생성 [그룹 2 / LL
 from collections import Counter
 
 from support.slots import _num
+from support.prompts import FEWSHOT_BY_SECTION
 from state.models import WorkerPackage
 
 
@@ -81,7 +82,7 @@ def _facts_summary(dp):
         f"Scope 1+2 합계: {_num(r.scope12_tco2eq)} tCO₂eq (전체의 {r.scope12_ratio}%)",
         f"Scope 3 전체: {_num(r.scope3_tco2eq)} tCO₂eq (전체의 {r.scope3_ratio}%)",
     ]
-    facts += [f"핫스팟 {i+1}위: {h.label} {_num(h.value)} tCO₂eq ({h.share_percent}%)"
+    facts += [f"핫스팟 {i+1}위: {h.label} {_num(h.value)} tCO₂eq (전체 배출량의 {h.share_percent}%)"
               for i, h in enumerate(dp.hotspots)]
     # 할당 방식 한 줄 요약(editorial data_gap: summary에 할당 근거 서술 부족) — processes에서 코드가 집계.
     if dp.processes:
@@ -146,7 +147,7 @@ def _facts_lcia(dp):
         f" = 원부자재 {_num(r.scope3_upstream_tco2eq)} + 운송·폐기물 {_num(r.scope3_other_tco2eq)}",
     ]
     # Scope별 기여(breakdown 표가 정본) — 서술용으로 활동·배출·비율
-    facts += [f"Scope 기여: [{b.scope}] {b.activity} {_num(b.total_tco2eq)} tCO₂eq ({_num(b.share_percent)}%)"
+    facts += [f"Scope 기여: [{b.scope}] {b.activity} {_num(b.total_tco2eq)} tCO₂eq (전체 배출량의 {_num(b.share_percent)}%)"
               for b in dp.breakdown]
     # 라인 분배(③) — 활동별 배출 표의 '할당 전 → {line} 할당' 열을 서술할 근거(lcia엔 할당 fact가 없었음).
     ln = dp.meta.line_name
@@ -209,9 +210,30 @@ def _facts_interp(dp):
         )
         facts.append(
             "민감도 분석 대상 선정 기준: Scope별 최대 기여 배출원(기여도 상위 항목) — "
-            + ", ".join(f"{h.label}({h.share_percent}%)" for h in dp.hotspots)
+            + ", ".join(f"{h.label}(전체 배출량의 {h.share_percent}%)" for h in dp.hotspots)
         )
-    facts += [f"핫스팟: {h.label} {h.share_percent}% — {h.note}" for h in dp.hotspots]
+    # 비율의 분모('전체 배출량의')를 라벨에 박아 고정 — %만 주면 worker가 'Scope 1에서 89.6%'처럼
+    # Scope 내부 비중으로 오독해 서술한다(2026-07-12, 3런 중 2런 재발 확인). 숫자가 아니라
+    # 관계 서술 오류라 verify(숫자 대조)로는 안 잡힌다 → 라벨이 유일한 방어선.
+    facts += [f"핫스팟: {h.label} — 전체 배출량의 {h.share_percent}% ({h.note})" for h in dp.hotspots]
+    # 데이터 품질 × 불확실성 교차 재료(2026-07-12) — '지배 배출원은 어떤 품질의 데이터에
+    # 기반하고, 불확실한 3등급 Proxy는 어느 범위에 국한되는가'를 worker가 근거 있게 해석하도록
+    # 코드가 계산해 제공(D1). 등급·집계는 governance/conclusion과 동일 소스(emission_lines)라 표현이 일치한다.
+    if dp.emission_lines:
+        top = max(dp.emission_lines, key=lambda e: float(e.total_tco2eq or 0))
+        facts.append(
+            f"지배 배출원의 데이터 품질: {top.activity} (배출 {_num(top.total_tco2eq)} tCO₂eq)의 "
+            f"DQR 등급은 {top.dqr_grade}"
+        )
+        g3 = [e for e in dp.emission_lines if e.dqr_grade.startswith("3")]
+        if g3 and r.scope3_tco2eq and r.total_tco2eq:
+            g3_sum = sum(e.total_tco2eq for e in g3)
+            g3_s3 = float(g3_sum) / float(r.scope3_tco2eq) * 100
+            g3_tot = float(g3_sum) / float(r.total_tco2eq) * 100
+            facts.append(
+                f"3등급(Proxy·문헌) 데이터 적용 범위: 3등급 계열 {len(g3)}개 항목 합계 {_num(g3_sum)} tCO₂eq — "
+                f"Scope 3 전체의 {_num(g3_s3, 1)}%이나, 총 배출량 기준으로는 {_num(g3_tot, 1)}%"
+            )
     return facts
 
 
@@ -300,17 +322,30 @@ def _facts_default(dp):
     ]
 
 
-def _method_facts(dp):
+def _method_facts(dp, must_cover_text=""):
     """모든 섹션이 공유하는 방법론 선언 — GWP·경계·할당을 '동일 표현'으로 grounding.
     일부 섹션 facts에만 있으면(예: 이전엔 GWP가 conclusion에만) GWP 없는 섹션 워커가
     근거 없이 'ISO 14067 100년 GWP' 식으로 임의 표현 → 섹션 간 불일치 → verify가 flag.
-    모든 섹션에 같은 값을 주면 WORKER 규칙3('facts 표현 그대로')이 일관되게 작동한다."""
+    모든 섹션에 같은 값을 주면 WORKER 규칙3('facts 표현 그대로')이 일관되게 작동한다.
+
+    선언 vs 참조: 3종을 전 섹션에 주면 모든 worker가 첫머리에 경계 선언을 얹어 같은 문장이
+    4개 섹션에 반복됐다(2026-07-12). WORKER 규칙 6의 조건부 지시만으론 소형 모델이 안 지킴 →
+    must_cover에 없는 주제의 fact엔 '참조용' 꼬리표를 붙여 fact 단위로 차단한다(거버넌스의
+    [서술 지침] fact와 같은 패턴 — 지시 블록은 worker가 본문에 옮기지 않는다)."""
     m = dp.meta
-    return [
-        f"산정 경계: {m.system_boundary}",
-        f"GWP 기준: {m.gwp_basis}",
-        f"할당 근거: {m.allocation_basis}",
+    pairs = [
+        ("경계", f"산정 경계: {m.system_boundary}"),
+        ("GWP", f"GWP 기준: {m.gwp_basis}"),
+        ("할당", f"할당 근거: {m.allocation_basis}"),
     ]
+    out = []
+    for key, fact in pairs:
+        if key in must_cover_text:
+            out.append(fact)
+        else:
+            out.append(f"{fact} (참조용 — 용어 통일을 위해 제공. 이 섹션의 포함항목이 아니므로"
+                       f" 선언 문장으로 쓰지 말고, 서술에 필요할 때만 참조하라)")
+    return out
 
 
 # 섹션 id → 팩트 빌더. 섹션 구성이 바뀌면(SECTION_IDS) 여기만 따라가면 된다.
@@ -332,13 +367,14 @@ def dispatch(state):
     packages = []
     for sp in outline.sections:
         build = FACT_BUILDERS.get(sp.id, _facts_default)
-        facts = _method_facts(dp) + build(dp)      # 방법론 선언(경계·GWP·할당)을 모든 섹션 공통 주입
+        # 방법론(경계·GWP·할당)을 모든 섹션에 주입하되, must_cover에 없는 주제는 '참조용' 표시
+        facts = _method_facts(dp, " ".join(sp.must_cover)) + build(dp)
         packages.append(WorkerPackage(
             section_id=sp.id,
             facts=facts,                           # 라벨된 사실 문장(코드가 DataPack에서 포맷)
             evidence_slice=evidence.get(sp.id, []),
             outline=outline,           # 전체 목차(남이 뭘 맡는지 인지 → 중복방지)
             prev_summaries=[],         # 병렬이라 dispatch 시점엔 비움(중복방지는 outline 인지 + assemble이 담당)
-            fewshot="",                # TODO: support.prompts.FEWSHOT_BY_SECTION[sp.id]
+            fewshot=FEWSHOT_BY_SECTION.get(sp.id, ""),   # 섹션별 포맷 예시(자리표시자 뼈대)
         ))
     return {"packages": packages}

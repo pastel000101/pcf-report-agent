@@ -6,6 +6,11 @@ LLM 보고서 생성의 가장 큰 리스크는 수치 할루시네이션입니�
 
 📄 예시 산출물: [examples/](examples/) (더미 데이터 기반 — 등장하는 기업·수치는 모두 가상입니다)
 
+## 프로젝트 배경
+
+**L-ENERGY PCF & Digital Passport Platform** (2026.06 – 2026.07 / 6인 팀 프로젝트)의 일부입니다.
+배터리 탄소발자국 산정 플랫폼에서 **보고서 생성 에이전트**를 담당해, 산정 결과와 ISO 표준 근거로 산출근거서를 만드는 파이프라인을 설계·구현했습니다. 이 저장소는 그 담당 파트를 단독 실행 가능한 형태로 정리한 것입니다.
+
 ## 핵심 설계
 
 - **숫자는 코드만 만든다** — `DataPack`(단일 진실 공급원) → 섹션별 '라벨된 팩트시트' 분배 → 표·수치는 Jinja2 슬롯 렌더링. LLM은 "왜 이런 결과인가"의 서술만 담당.
@@ -23,21 +28,46 @@ collect → plan(코드 목차) → retrieve(RAG) → dispatch → worker ×6 (�
 
 파일·함수 단위 상세 흐름은 [docs/agent-flow.md](docs/agent-flow.md) 참조.
 
+## ISO 표준 RAG — 본문과 연결된 표·그림을 함께 검색
+
+규제 문서의 근거는 조항 본문만으로 부족한 경우가 많습니다(본문이 "Table 3 참조"로 넘기는 식). 그래서 검색을 두 단계로 나눴습니다.
+
+- **두 표준 병합 검색** — ISO 14067·14044를 별도 ChromaDB 컬렉션(bge-m3 임베딩)으로 적재하고, 질의마다 각각 검색해 **거리 기준으로 병합**한 상위 k를 쓴다.
+- **참조 ID로 표·그림 결합** — 선별된 본문 청크의 `refs`(그 청크가 가리키는 표/그림 id)를 모아 에셋 설명을 **결정론적으로** 추가 fetch한다. LLM이 표를 찾는 게 아니라 코드가 링크를 따라간다.
+- **컬렉션 이름으로 조항 id 구분** — 두 표준 모두 조항 번호로 청크 id를 만들어 id가 겹치므로(`3_1__0`), 반환 id를 `컬렉션:청크id`로 네임스페이스해 중복 제거가 오판하지 않게 했다.
+- **선별 가드** — 정의 조항 편중(≤2), 같은 조항 독점(≤2), 앞 섹션과의 근거 중복을 코드로 배제한다.
+
+## 트러블슈팅 — 검증 오탐으로 인한 반복 재작성
+
+**문제**: 검증 LLM(grader)이 **본문에 없는 문장을 인용해** 지적하는 일이 있었고, 그 지적 하나로 전체 섹션이 다시 채점·재작성되며 불필요한 호출이 반복됐습니다.
+
+**원인**: ① grader 출력을 그대로 신뢰 ② 재작성 후 전 섹션을 재채점하는 구조.
+
+**해결**:
+- 지적의 인용문을 정규화해 **실제 서술과 대조** → 원문에 없는 인용은 지적에서 폐기(환각 지적 차단).
+- **섹션 동결** — 재진입 시 재작성한 섹션만 다시 채점(통과한 섹션의 재채점 래칫 방지).
+- 재작성 **횟수 상한**을 두고, 데이터가 없어 고칠 수 없는 지적은 `data_gap` 백로그로 분리해 사람이 판단하게 남김.
+
+**결과**: 자기수정 루프가 유한하게 종료되고, 검증 런 기준 수치 환각(데이터에 없는 숫자) 0건. 최종 출력은 사람이 확인하는 것을 전제로 합니다 — 이 파이프라인은 검증기관 판정을 대체하지 않고 **초안**을 만듭니다.
+
 ## 실측 지표
 
-- 보고서 초안(PDF 포함) 1건 생성 약 2분, API 비용 약 $0.2 (Claude Haiku 4.5 기준)
-- 실행 트레이스(`trace_run.py`) 회귀 분석으로 LLM 호출 20→12회, 입력 토큰 43% 절감
-- 검증 런 기준 수치 환각(데이터에 없는 숫자) 0건
+로컬 `gemma4:12b-it-qat` / 더미 데이터 1건 실행 기준:
+
+- 보고서 초안(Markdown + 차트 포함 PDF) 1건 생성 **약 4분**, LLM 호출 **16회**(worker 10 · verify 4 · edit 2 — 자기수정 재작성 4회 포함)
+- **수치 검증 통과** — 서술에 등장한 모든 수치가 `DataPack`과 일치(데이터에 없는 숫자 0건)
+- 실행 트레이스(`trace_run.py`) 회귀 분석으로 LLM 호출 경로 20→12회, 입력 토큰 43% 절감(재작성이 없는 기본 경로 기준)
 
 ## 실행 방법
 
 **사전 준비**
 
 1. Python 3.11+ / `pip install -r requirements.txt`
-2. `.env` 작성 — `.env.example` 참조 (`ANTHROPIC_API_KEY` 필수)
-3. [Ollama](https://ollama.com) 실행 + `ollama pull bge-m3` (RAG 임베딩)
+2. [Ollama](https://ollama.com) 실행 + 모델 받기 — `ollama pull bge-m3`(RAG 임베딩), `ollama pull gemma4:12b-it-qat`(서술 생성)
+3. `.env` 작성 — `.env.example` 참조 (기본값으로 동작하므로 모델을 바꿀 때만 필요)
 4. ISO 표준 문서 배치 및 인덱스 구축 — **저작권상 저장소에 미포함**, [data/README.md](data/README.md) 참조
-5. (PDF 출력, Windows) GTK3 런타임 설치 — 없어도 .md는 정상 산출
+
+   (PDF는 reportlab 기반이라 OS 네이티브 의존성이 없습니다 — 별도 런타임 설치가 필요 없습니다. 한글 폰트는 `pdf/fonts/Pretendard-*.ttf`를 동봉해 런타임에 등록합니다.)
 
 **실행**
 
@@ -48,8 +78,16 @@ python trace_run.py 101                   # 전 노드·LLM 호출 타임라인 
 
 ## 기술 스택
 
-Python · LangGraph · LangChain(langchain-anthropic) · Claude(Haiku 4.5) · ChromaDB + bge-m3(Ollama) · Pydantic 구조화 출력 · Jinja2 · WeasyPrint
+Python · LangGraph · LangChain · ChromaDB + bge-m3 · Ollama(로컬 LLM) · Pydantic 구조화 출력 · Jinja2 · ReportLab + matplotlib
 
 ## 데이터에 관한 주의
 
 `domi_data/sample_payload.json`과 예시 산출물의 기업명·사업장·수치는 모두 **가상의 더미 데이터**입니다. ISO 표준 원문·파생 인덱스는 저작권 보호를 위해 저장소에 포함하지 않습니다.
+
+## 만든 사람
+
+**전지만** — AI·LLM 애플리케이션 개발 / Python 백엔드
+
+LLM이 근거를 조회하고 결과를 검증하는 구조(RAG·Tool Calling·Agent Workflow)에 관심이 있습니다.
+
+[github.com/pastel000101](https://github.com/pastel000101) · pastel000101@gmail.com

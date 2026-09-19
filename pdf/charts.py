@@ -1,12 +1,12 @@
 """
-charts.py — DataPack → 차트(SVG data-URI) [pdf 패키지 / LLM ✗ 숫자 시각화]
+charts.py — DataPack → 차트(SVG/PNG data-URI) [pdf 패키지 / LLM ✗ 숫자 시각화]
 
 표/수치를 코드가 박는 원칙(slots.py)과 같은 계열. 차트도 DataPack 숫자만으로 '코드가' 그린다.
 LLM은 관여하지 않는다 → 환각 위험 없음.
 
-출력: build_charts(dp) → {chart_id: "data:image/svg+xml;base64,..."}
-  - SVG(벡터) → PDF에서 선명하고 용량 작음.
-  - svg.fonttype='path' → 텍스트를 벡터 path로 렌더 → WeasyPrint가 폰트 의존 없이 한글 출력.
+출력: build_charts(dp, fmt) → {chart_id: "data:image/svg+xml;base64,..." 또는 "data:image/png;base64,..."}
+  - svg: 벡터 — 웹/뷰어용으로 선명하고 용량 작음 (svg.fonttype='path'로 폰트 의존 없이 한글 출력).
+  - png: reportlab 엔진(to_pdf.py)이 PDF에 삽입할 때 사용(reportlab은 SVG를 직접 못 그린다). dpi는 PNG_DPI.
 
 배치는 to_pdf가 CHART_ANCHORS 매핑(차트 id → 표 캡션)으로 결정한다.
 각 차트는 '대응하는 표 바로 위'에 주입된다(캡션 <strong> 텍스트를 앵커로 그 표 직전에 삽입).
@@ -66,13 +66,22 @@ _GREEN = "#2a9d6f"
 _PALETTE = ["#2a9d6f", "#4c9be8", "#e8a14c", "#9b8bd6", "#d96c6c", "#7bbf8a"]
 
 
-def _fig_to_data_uri(fig) -> str:
-    """matplotlib figure → SVG data-URI. figure는 닫는다(메모리 누수 방지)."""
+PNG_DPI = 200   # png 저장 해상도 — to_pdf가 표시 크기(pt) 환산에 같은 값을 쓴다
+
+
+def _fig_to_data_uri(fig, fmt: str = "svg") -> str:
+    """matplotlib figure → 이미지 data-URI(svg=벡터, png=reportlab 삽입용). figure는 닫는다(메모리 누수 방지)."""
     buf = io.BytesIO()
-    fig.savefig(buf, format="svg", bbox_inches="tight", transparent=True)
+    if fmt == "png":
+        # 인쇄 대비 흰 배경 — 투명 PNG는 뷰어에 따라 검게 보일 수 있다
+        fig.savefig(buf, format="png", dpi=PNG_DPI, bbox_inches="tight", facecolor="white")
+        mime = "image/png"
+    else:
+        fig.savefig(buf, format="svg", bbox_inches="tight", transparent=True)
+        mime = "image/svg+xml"
     plt.close(fig)
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-    return f"data:image/svg+xml;base64,{b64}"
+    return f"data:{mime};base64,{b64}"
 
 
 def _chart_scope(dp):
@@ -110,7 +119,7 @@ def _chart_scope(dp):
     ax.legend(wedges, leg_labels, loc="center left", bbox_to_anchor=(0.98, 0.5),
               fontsize=8.5, frameon=False)
     ax.set_title("Scope별 배출 구성", fontsize=12, fontweight="bold", pad=12)
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 def _chart_breakdown(dp):
@@ -130,7 +139,7 @@ def _chart_breakdown(dp):
     ax.set_xlim(0, max(vals) * 1.15)
     ax.set_title("활동별 배출 기여", fontsize=12, fontweight="bold", pad=10)
     ax.spines[["top", "right"]].set_visible(False)
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 def _chart_sensitivity(dp):
@@ -152,7 +161,7 @@ def _chart_sensitivity(dp):
     ax.legend(fontsize=7, frameon=False)
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="y", alpha=0.3)
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 def _chart_materials(dp):
@@ -172,7 +181,7 @@ def _chart_materials(dp):
     ax.set_xlim(0, max(vals) * 1.15)
     ax.set_title("자재별 배출", fontsize=12, fontweight="bold", pad=10)
     ax.spines[["top", "right"]].set_visible(False)
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 def _chart_emission_lines(dp):
@@ -211,7 +220,7 @@ def _chart_emission_lines(dp):
     ax.legend(wedges, leg, loc="center left", bbox_to_anchor=(0.98, 0.5),
               fontsize=8, frameon=False)
     ax.set_title("활동별 배출 구성", fontsize=12, fontweight="bold", pad=12)
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 def _chart_boundary(dp):
@@ -270,7 +279,7 @@ def _chart_boundary(dp):
     if notes:
         ax.text(5, 0.45, " · ".join(notes), ha="center", fontsize=7, color="#999")
 
-    return _fig_to_data_uri(fig)
+    return fig
 
 
 _BUILDERS = {
@@ -283,25 +292,25 @@ _BUILDERS = {
 }
 
 
-def build_charts(dp) -> dict:
-    """DataPack → {chart_id: SVG data-URI}. 개별 차트 실패는 건너뛴다(하나 깨져도 나머지 유지)."""
+def build_charts(dp, fmt: str = "svg") -> dict:
+    """DataPack → {chart_id: data-URI(fmt=svg|png)}. 개별 차트 실패는 건너뛴다(하나 깨져도 나머지 유지)."""
     out = {}
     for cid, fn in _BUILDERS.items():
         try:
-            uri = fn(dp)
-            if uri:
-                out[cid] = uri
+            fig = fn(dp)
+            if fig is not None:
+                out[cid] = _fig_to_data_uri(fig, fmt)
         except Exception as e:
             print(f"[charts] '{cid}' 생성 실패(건너뜀): {e}")
     return out
 
 
-def build_table_charts(dp) -> dict:
-    """DataPack → {표 캡션 → [SVG data-URI, ...]}.
+def build_table_charts(dp, fmt: str = "svg") -> dict:
+    """DataPack → {표 캡션 → [data-URI, ...]} (fmt=svg|png).
 
     build_charts로 차트를 만든 뒤 CHART_ANCHORS(차트 id→표 캡션)로 캡션별로 묶는다.
     to_pdf가 이 매핑으로 '그 표 바로 위'에 차트를 주입한다. 같은 캡션이면 삽입순으로 쌓인다."""
-    charts = build_charts(dp)
+    charts = build_charts(dp, fmt)
     grouped = {}
     for cid, caption in CHART_ANCHORS.items():
         if cid in charts:

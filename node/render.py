@@ -18,7 +18,8 @@ render.py — 출력 [그룹 2 / LLM ✗]
 의존: pdf.md_to_pdf (격리된 PDF 엔진 — 교체 시 그 패키지만 수정)
 
 주의:
-  - PDF는 WeasyPrint + 동봉 폰트(Pretendard). Windows는 GTK 런타임 필요(pdf/to_pdf.py 참고).
+  - PDF는 reportlab + 동봉 폰트(Pretendard) — 순수 Python이라 OS 네이티브 의존성 없음.
+    차트는 md에 임베드된 DataPack에서 to_pdf가 PNG로 재생성해 표 위에 삽입한다.
   - PDF 생성 실패는 치명적이지 않다 → 경고만 남기고 .md 경로는 정상 반환.
 """
 

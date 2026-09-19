@@ -14,11 +14,12 @@
 
 ## 인덱스 구축
 
-파일 배치 후 임베딩 인덱스(ChromaDB)를 생성합니다 (Ollama + `bge-m3` 모델 필요):
+파일 배치 후 임베딩 인덱스(ChromaDB)를 생성합니다 (Ollama + `bge-m3` 모델 필요).
+**저장소 루트에서** 아래처럼 실행하세요 — 파일 경로로 직접 실행하면(`python rag/ingest_iso_14067.py`) `rag` 패키지를 못 찾습니다:
 
 ```bash
-python rag/ingest_iso_14067.py
-python rag/ingest_iso14044.py
+python -m rag.ingest_iso_14067
+python -m rag.ingest_iso14044
 ```
 
 생성된 `rag/chroma_db/`는 커밋하지 않습니다(.gitignore 처리).

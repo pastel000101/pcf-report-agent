@@ -21,8 +21,8 @@ retrieve.py — 메인: RAG 호출 [그룹 2 / LLM △ 검색만]
 
 from rag.retriever import search
 
-K_PER_SECTION = 8     # 섹션당 최종 근거 수
-K_PER_QUERY = 5       # 질의당 후보 수(과검색 후 선별)
+K_PER_SECTION = 12    # 섹션당 최종 근거 수 — 14044 컬렉션 추가로 두 표준이 같은 풀을 나누게 되어 8→12 증량
+K_PER_QUERY = 6       # 질의당 후보 수(과검색 후 선별) — 컬렉션당 6개씩 뽑아 병합 상위 6 반환
 MAX_DEFINITIONS = 2   # 용어 정의(3장) 조항 상한 — 방법론 조항(5/6/7장 등)에 자리를 내준다
 MAX_PER_CLAUSE = 2    # 같은 조항(clause_no)의 청크 상한 — 긴 조항이 여러 청크로 쪼개져 한 섹션을 독점하는 것 방지
 MIN_PER_SECTION = 3   # 전 섹션 중복 배제로 이보다 적어지면 중복을 허용해 보충
