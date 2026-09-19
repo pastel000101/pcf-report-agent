@@ -1,9 +1,8 @@
 langgraph
-langchain
-langchain-chroma
+langchain-core
 langchain-ollama
-langchain-community
-langchain-tavily
+langchain-chroma
+langchain-text-splitters
 python-dotenv
 pydantic
 jinja2

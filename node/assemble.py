@@ -19,7 +19,7 @@ LLM: edit_llm() — 편집 부분만(저온). 슬롯 치환은 코드(support.sl
 
 import re
 
-from llm.llm_model import edit_llm, cached_system
+from llm.llm_model import edit_llm, system_message
 from state.models import EditedReport
 from support.prompts import EDIT_SYSTEM
 from support.slots import render_report
@@ -73,7 +73,7 @@ def _edit_narratives(drafts, outline, flow_feedback=None) -> dict:
         )
     try:
         llm = edit_llm().with_structured_output(EditedReport)
-        edited = llm.invoke([cached_system(EDIT_SYSTEM), ("human", human)])
+        edited = llm.invoke([system_message(EDIT_SYSTEM), ("human", human)])
         result = {s.id: strip_emojis(s.narrative) for s in edited.sections}
         # 누락된 섹션은 원본으로 보충
         for sid, narr in originals.items():

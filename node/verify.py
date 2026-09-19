@@ -16,7 +16,7 @@ verify.py — 검증 [그룹 2 / LLM △ grader만 온도0]
 import re
 from decimal import Decimal
 
-from llm.llm_model import verify_llm, cached_system
+from llm.llm_model import verify_llm, system_message
 from state.models import Verification, SectionIssue, GraderOutput
 from support.prompts import VERIFY_SYSTEM
 from support.text import norm_for_match
@@ -126,7 +126,7 @@ def _grade(drafts, facts_by_sec):
     human = f"[섹션별 근거 사실과 서술]\n{payload}"
     try:
         llm = verify_llm().with_structured_output(GraderOutput)
-        out = llm.invoke([cached_system(VERIFY_SYSTEM), ("human", human)])
+        out = llm.invoke([system_message(VERIFY_SYSTEM), ("human", human)])
         issues = list(out.issues)
     except Exception:
         return []

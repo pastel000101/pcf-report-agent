@@ -18,7 +18,7 @@ LLM: worker_llm() 사용(중온).
   - 결과는 state.drafts에 누적(merge)된다 → state.py의 reducer 규칙과 짝.
 """
 
-from llm.llm_model import worker_llm, cached_system
+from llm.llm_model import worker_llm, system_message
 from state.models import SectionDraft
 from support.prompts import WORKER_SYSTEM
 from support.text import strip_emojis
@@ -69,7 +69,7 @@ def worker(state):
         )
 
     llm = worker_llm().with_structured_output(SectionDraft)
-    draft = llm.invoke([cached_system(WORKER_SYSTEM), ("human", human)])
+    draft = llm.invoke([system_message(WORKER_SYSTEM), ("human", human)])
 
     # id/title은 코드가 확정한다(LLM이 틀리면 drafts reducer 병합이 깨지므로 ★중요).
     draft.id = sid

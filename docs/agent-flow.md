@@ -107,7 +107,7 @@
 ### ⑥ worker — [node/worker.py](../node/worker.py) `worker(state)` — **LLM ✓** (temp 0.4)
 - **입력**: WorkerPackage dump(`section_id`, `facts`, `evidence_slice`, `outline`, `prev_summaries`, `fewshot`, `feedback`).
 - **하는 일**: `_find_section()`으로 담당 섹션 기획을 찾고, human 메시지([담당 섹션]/[전체 목차]/[핵심 사실]/[참고 문서]/[지시]…) 구성. **재작성 호출이면** `feedback`(누적 지적)을 `[수정 요청]`+`[우선순위]`(facts에 없는 수치 요구는 무시하라) 블록으로 동봉.
-  LLM: [llm/llm_model.py](../llm/llm_model.py) `worker_llm()` + `cached_system(WORKER_SYSTEM)`([support/prompts.py](../support/prompts.py)) + `with_structured_output(SectionDraft)`.
+  LLM: [llm/llm_model.py](../llm/llm_model.py) `worker_llm()` + `system_message(WORKER_SYSTEM)`([support/prompts.py](../support/prompts.py)) + `with_structured_output(SectionDraft)`.
   후처리(코드): `draft.id/title` 강제 확정(reducer 병합 보호), [support/text.py](../support/text.py) `strip_emojis` 3필드.
 - **출력**: `{"drafts": [SectionDraft]}` — state의 `drafts`는 `merge_drafts` reducer([state/state.py](../state/state.py))로 병합: 같은 id면 **교체**(재작성이 중복으로 안 쌓임). → 고정 엣지로 **verify**.
 
@@ -115,7 +115,7 @@
 - **입력**: `data_pack`, `drafts`, `packages`(→`_facts_by_section()`으로 섹션별 채점 기준), `rewrite_sections`.
 - **하는 일** (2단 검증, **섹션 동결**: 재진입이면 `rewrite_sections`의 섹션만 재채점 — 래칫 방지):
   - (a) `_check_numbers()` — **순수 코드**: draft의 `numbers_used` 각 숫자가 DataPack 전체(`_collect_numbers` 재귀 수집)+facts 표시값 허용집합에 있는지 대조. `WHITELIST`(ISO 표준번호·연도 등)·`REL_TOL=1%`로 오탐 방지.
-  - (b) `_grade()` — grader LLM: `verify_llm()` + `cached_system(VERIFY_SYSTEM)` + `GraderOutput`. 출력 이슈의 `quote`를 코드가 `norm_for_match`로 실제 서술과 대조 — **원문에 없는 인용(환각 지적)은 폐기**.
+  - (b) `_grade()` — grader LLM: `verify_llm()` + `system_message(VERIFY_SYSTEM)` + `GraderOutput`. 출력 이슈의 `quote`를 코드가 `norm_for_match`로 실제 서술과 대조 — **원문에 없는 인용(환각 지적)은 폐기**.
 - **출력**: `{"verification", "rewrite_count"(실패 시 +1), "feedback_log"(reducer 누적), "rewrite_sections"(실패 섹션)}`.
 - **행선지**: `route_after_verify` — 통과 or `rewrite_count > MAX_REWRITES(1)` → **assemble** / 실패(상한 내) → `_send_workers()`가 실패 섹션 패키지에 feedback을 실어 **worker** 재작성(→ 다시 verify) **[루프 A]**.
 
@@ -123,7 +123,7 @@
 - **입력**: `data_pack`, `outline`, `drafts`, `edited_sections`(직전 편집 캐시), `editorial`(flow 반려 시).
 - **하는 일**:
   - 재편집이면 직전 편집 결과(`edited_sections[sid]["out"]`)에서 이어 편집(단 `src`≠현재 초안이면 그 섹션은 재작성된 것 → 새 초안 사용).
-  - (a) `_edit_narratives()` — 편집 LLM: `edit_llm()` + `cached_system(EDIT_SYSTEM)` + `EditedReport`. editorial의 **flow 지적만** `[재편집 지적]`으로 동봉. 실패 시 원본 폴백.
+  - (a) `_edit_narratives()` — 편집 LLM: `edit_llm()` + `system_message(EDIT_SYSTEM)` + `EditedReport`. editorial의 **flow 지적만** `[재편집 지적]`으로 동봉. 실패 시 원본 폴백.
   - (a') `_reject_new_numbers()` — **코드 가드**: 편집 출력에 '전체 입력 어디에도 없던 숫자'가 생긴 섹션은 편집 폐기·원본 폴백(편집은 verify 뒤라 재검증이 없으므로 마지막 방어선).
   - (b) [support/slots.py](../support/slots.py) `render_report(dp, outline, edited)` — 표/수치 슬롯을 **코드가** DataPack으로 치환 + 서술 삽입 → Markdown 완성.
 - **출력**: `{"draft_md", "edited_sections"}`.
@@ -131,7 +131,7 @@
 
 ### ⑨ editorial — [node/editorial.py](../node/editorial.py) `editorial_review(state)` — **LLM ✓** (temp 0)
 - **입력**: `draft_md`, `outline`(유효 섹션 id↔제목 매핑 + 섹션별 설계 goal/must_cover를 human에 명시).
-- **하는 일**: `verify_llm()` + `cached_system(EDITORIAL_SYSTEM)` + `EditorialReview`. 완결성(설계 범위 기준)·흐름·톤·중복 평가, 이슈를 kind로 분류: `content`(재작성으로 해결, fix_source 필수) / `flow`(재편집으로 해결 — 삭제·이동·순서 조정만으로 해소 가능한 것만) / `data_gap`(데이터 없어 해결 불가).
+- **하는 일**: `verify_llm()` + `system_message(EDITORIAL_SYSTEM)` + `EditorialReview`. 완결성(설계 범위 기준)·흐름·톤·중복 평가, 이슈를 kind로 분류: `content`(재작성으로 해결, fix_source 필수) / `flow`(재편집으로 해결 — 삭제·이동·순서 조정만으로 해소 가능한 것만) / `data_gap`(데이터 없어 해결 불가).
   후처리(코드): `_demote_ungrounded_content()` — fix_source가 초안 원문에서 확인 안 되는 content를 **data_gap으로 강등**(전면 재작성 폭주 차단).
 - **출력**: `{"editorial", "editorial_rounds"(실패 시 +1), "feedback_log"(content만 누적), "rewrite_sections"(content 섹션), "data_gap_log"(라운드 간 누적 — 2026-07-04 신설)}`.
 - **행선지**: `route_after_editorial` — 통과 or `editorial_rounds > MAX_EDITORIAL` → **review** / content 있음 → **worker** 재작성(Send, 이후 verify→assemble 경유) / flow만 → **assemble** 재편집 / data_gap뿐 → **review**(헛도는 재작성 차단) **[루프 B]**.
@@ -178,7 +178,7 @@
 | `edit_llm()` | assemble | `LLM_EDIT_MODEL/_TEMP` | 〃 | 0.2 (저온 편집) |
 | `verify_llm()` | verify(grader), editorial | `LLM_VERIFY_MODEL/_TEMP` | 〃 | 0.0 (결정적 판정) |
 
-- 공통: `_build(role, default_temp)`가 호출 시점마다 .env를 다시 읽어(`load_dotenv(override=True)`) `ChatOllama`를 만든다 — 서버 재시작 없이 모델·온도를 바꿀 수 있다. 호출부는 `cached_system(텍스트)`로 시스템 프롬프트를 만든다.
+- 공통: `_build(role, default_temp)`가 호출 시점마다 .env를 다시 읽어(`load_dotenv(override=True)`) `ChatOllama`를 만든다 — 서버 재시작 없이 모델·온도를 바꿀 수 있다. 호출부는 `system_message(텍스트)`로 시스템 프롬프트를 만든다.
 - ⚠️ **로컬 모델 대응(2026-07-12)**: 소형·양자화 모델에서 다음 3개를 명시하지 않으면 파이프라인이 조용히 깨진다 — `num_ctx`(기본 4,096을 넘으면 프롬프트 '앞부분'=시스템 규칙부터 잘려 규칙 위반이 샌다), `repeat_penalty`(미설정 시 꺼져 JSON 생성 중 같은 어절을 무한 반복), `think=false`(사고 과정이 출력 토큰을 소진해 `content`가 빈 문자열로 와 구조화 출력 파싱 실패). 각 값의 배경은 [llm/llm_model.py](../llm/llm_model.py) 주석 참조.
 - 프롬프트 원문: [support/prompts.py](../support/prompts.py) — `WORKER_SYSTEM`/`EDIT_SYSTEM`/`VERIFY_SYSTEM`/`EDITORIAL_SYSTEM`(+공통 `DOC_CONTEXT` '제시' 자세). 구조화 출력 스키마: [state/models.py](../state/models.py).
 

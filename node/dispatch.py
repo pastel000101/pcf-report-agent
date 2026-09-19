@@ -53,11 +53,8 @@ _AUDIT_TYPE_KO = {
     "ANOMALY_DETECT": "이상치",
     "NORMALIZATION": "AI 정규화 검토",
 }
-# 데이터 파이프라인 정본 상태(Output State) — 감사로그 status가 이 어휘를 따른다.
-#   Ready→Submitted→Validating→[Pending_Review/Corrected]→Frozen→Calculated→Approved→…→Locked.
-#   예외(주목) 상태 = 소명·검토 대기(Pending_Review). 정상 진행(Submitted/Validating 등)은 예외 아님.
+# 감사로그 status 어휘. 예외(주목) = 소명·검토 대기뿐이고 정상 진행은 예외가 아니다.
 _EXCEPTION_STATES = {"Pending_Review"}
-#   최종(동결) 상태 — 이 중 하나면 산정이 확정·잠긴 것으로 본다.
 _FINALIZED_STATES = {"Locked", "Frozen", "Revision_Snapshot_Created", "Approved"}
 
 
@@ -114,9 +111,7 @@ def _facts_lci(dp):
         f"할당 체계 정리: (근거) FEMS 실측 데이터를 기준으로, (방식) 각 공정을 위 공정별 방식으로 배분하고, "
         f"(라인) 여러 라인 공유 공정({', '.join(shared)})은 {dp.meta.line_name} 몫으로 분배한다"
     )
-    # 라인 할당 '비율'(editorial data_gap 반복 지적: O/X만으론 실제 배분량 추적 불가) —
-    #   활동별 배출 라인의 할당 전→후 수량에서 코드가 비율을 계산해 명시(worker 역산 금지, D1).
-    #   에너지 활동(MWh/천m3)이 공정 할당의 대상이다(ton=자재·폐기물, t-km=운송).
+    # 라인 할당 '비율' — O/X만으론 배분량 추적이 안 되므로 할당 전→후 수량에서 코드가 계산.
     ln = dp.meta.line_name
     alloc_parts = []
     for e in dp.emission_lines:
@@ -212,13 +207,11 @@ def _facts_interp(dp):
             "민감도 분석 대상 선정 기준: Scope별 최대 기여 배출원(기여도 상위 항목) — "
             + ", ".join(f"{h.label}(전체 배출량의 {h.share_percent}%)" for h in dp.hotspots)
         )
-    # 비율의 분모('전체 배출량의')를 라벨에 박아 고정 — %만 주면 worker가 'Scope 1에서 89.6%'처럼
-    # Scope 내부 비중으로 오독해 서술한다(2026-07-12, 3런 중 2런 재발 확인). 숫자가 아니라
-    # 관계 서술 오류라 verify(숫자 대조)로는 안 잡힌다 → 라벨이 유일한 방어선.
+    # 분모('전체 배출량의')를 라벨에 박는다 — %만 주면 worker가 Scope 내부 비중으로 오독한다.
+    # 숫자가 아니라 관계 서술 오류라 verify(숫자 대조)로는 안 잡혀 라벨이 유일한 방어선이다.
     facts += [f"핫스팟: {h.label} — 전체 배출량의 {h.share_percent}% ({h.note})" for h in dp.hotspots]
-    # 데이터 품질 × 불확실성 교차 재료(2026-07-12) — '지배 배출원은 어떤 품질의 데이터에
-    # 기반하고, 불확실한 3등급 Proxy는 어느 범위에 국한되는가'를 worker가 근거 있게 해석하도록
-    # 코드가 계산해 제공(D1). 등급·집계는 governance/conclusion과 동일 소스(emission_lines)라 표현이 일치한다.
+    # 데이터 품질 × 불확실성 교차 재료 — '지배 배출원의 데이터 등급'과 '3등급 Proxy의 적용 범위'를
+    # 코드가 계산해, worker가 둘을 엮어 해석할 수 있게 한다.
     if dp.emission_lines:
         top = max(dp.emission_lines, key=lambda e: float(e.total_tco2eq or 0))
         facts.append(
@@ -253,8 +246,7 @@ def _facts_governance(dp):
     # 감사로그 10건 전부가 아니라 '주목할 예외 이벤트(검토 대기 = Pending_Review)'만.
     #   정본 상태 기준 판별 → 정상 진행(Submitted/Validating/Approved 등)은 자연히 제외.
     notable = [a for a in dp.audit_log if a.status in _EXCEPTION_STATES]
-    # ★ WORM 로그의 상태는 '그 시점' 값 → Pending_Review가 '현재 미해결'을 뜻하지 않는다
-    #   (후속 수동 승인·수정으로 해소되고 Locked로 동결됨). 산정이 동결(Locked)됐으면
+    # ★ WORM 상태는 '그 시점' 값이라 Pending_Review가 현재 미해결을 뜻하지 않는다. 동결됐으면
     #   '탐지 후 해소됨'으로 프레이밍해야 worker가 '진행 중'으로 오해하지 않는다.
     finalized = (dp.meta.status in _FINALIZED_STATES
                  or any(a.status == "Locked" or a.event_type == "FINAL_LOCK" for a in dp.audit_log))
@@ -262,9 +254,7 @@ def _facts_governance(dp):
         # 유형별 건수만 요약 문장에 접어넣는다(개별 코드·수치는 WORM 표가 정본 → 여기선 나열 안 함).
         kinds = Counter(_AUDIT_TYPE_KO.get(a.event_type, a.event_type) for a in notable)
         kinds_str = ", ".join(f"{k} {v}건" for k, v in kinds.items())
-        # 주목 이벤트 요약 + 집계 기준·WORM 특성을 '하나의 사실'로 합쳐 넘긴다(worker가 한 덩어리로 서술).
-        #   (editorial data_gap: 로그 표엔 이벤트가 더 많은데 왜 4건인지, Pending_Review 해소 기록이
-        #    어디 있는지 — 판별 규칙 자체를 사실로 제공.)
+        # 건수·판별 기준·WORM 특성을 한 사실로 합쳐 넘긴다(표엔 이벤트가 더 많은 이유까지 포함).
         facts.append(
             f"감사 이력: 데이터 처리 중 주목 이벤트 총 {len(notable)}건({kinds_str})이 탐지됐으나, "
             f"담당자 수동 승인·수정으로 동결(Locked) 전 모두 해소됨 — 현재 미해결·진행 중 항목이 아니다. "
@@ -323,15 +313,10 @@ def _facts_default(dp):
 
 
 def _method_facts(dp, must_cover_text=""):
-    """모든 섹션이 공유하는 방법론 선언 — GWP·경계·할당을 '동일 표현'으로 grounding.
-    일부 섹션 facts에만 있으면(예: 이전엔 GWP가 conclusion에만) GWP 없는 섹션 워커가
-    근거 없이 'ISO 14067 100년 GWP' 식으로 임의 표현 → 섹션 간 불일치 → verify가 flag.
-    모든 섹션에 같은 값을 주면 WORKER 규칙3('facts 표현 그대로')이 일관되게 작동한다.
-
-    선언 vs 참조: 3종을 전 섹션에 주면 모든 worker가 첫머리에 경계 선언을 얹어 같은 문장이
-    4개 섹션에 반복됐다(2026-07-12). WORKER 규칙 6의 조건부 지시만으론 소형 모델이 안 지킴 →
-    must_cover에 없는 주제의 fact엔 '참조용' 꼬리표를 붙여 fact 단위로 차단한다(거버넌스의
-    [서술 지침] fact와 같은 패턴 — 지시 블록은 worker가 본문에 옮기지 않는다)."""
+    """경계·GWP·할당을 전 섹션에 '동일 표현'으로 주입해 grounding한다.
+    일부 섹션에만 주면 없는 섹션 worker가 임의 표현을 쓰고 섹션 간 불일치로 verify에 걸린다.
+    단, 전 섹션이 첫머리에 경계 선언을 얹어 같은 문장이 반복되므로, must_cover에 없는
+    주제의 fact엔 '참조용' 꼬리표를 붙여 선언을 fact 단위로 차단한다."""
     m = dp.meta
     pairs = [
         ("경계", f"산정 경계: {m.system_boundary}"),

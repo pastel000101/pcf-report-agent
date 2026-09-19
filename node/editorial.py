@@ -14,7 +14,7 @@ verify(숫자·충실성, 기계적)와 '다른 층'. 완성된 초안을 받아
   draft_md + outline → editorial, editorial_rounds(실패 시 +1), feedback_log, rewrite_sections, data_gap_log
 """
 
-from llm.llm_model import verify_llm, cached_system
+from llm.llm_model import verify_llm, system_message
 from state.models import EditorialReview
 from support.prompts import EDITORIAL_SYSTEM
 from support.text import norm_for_match
@@ -58,7 +58,7 @@ def editorial_review(state):
     )
     try:
         llm = verify_llm().with_structured_output(EditorialReview)
-        ed = llm.invoke([cached_system(EDITORIAL_SYSTEM), ("human", human)])
+        ed = llm.invoke([system_message(EDITORIAL_SYSTEM), ("human", human)])
     except Exception:
         ed = EditorialReview(passed=True, issues=[])   # 평가 실패 시 통과로 폴백(자기수정은 품질)
 
